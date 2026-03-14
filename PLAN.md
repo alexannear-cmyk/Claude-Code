@@ -198,11 +198,11 @@ gcloud functions deploy calendar-sync-reply \
 ### 6.3 Set Up Cloud Scheduler
 ```bash
 gcloud scheduler jobs create http calendar-sync-job \
-  --schedule "*/5 * * * *" \
+  --schedule "0 * * * *" \
   --uri https://REGION-PROJECT.cloudfunctions.net/calendar-sync-check \
   --http-method POST
 ```
-(Checks for new events every 5 minutes)
+(Checks for new events every hour, on the hour)
 
 ---
 
