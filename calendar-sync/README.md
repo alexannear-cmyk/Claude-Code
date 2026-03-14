@@ -1,6 +1,8 @@
 # Calendar Sync
 
-Automatically keep your partner informed about your schedule. When you add an event to your Google Calendar, the app detects it, asks you via a simple web dashboard if your partner should know, and creates a shared calendar event with an invite.
+Automatically keep your partner informed about your schedule. When you add an event to your Google Calendar, the app detects it, asks you to confirm via a mobile-friendly web app, and creates a shared calendar event with an invite.
+
+Works as a PWA (Progressive Web App) — add it to your iPhone home screen and it looks and feels like a native app.
 
 **Cost: $0/month.** No paid services required.
 
@@ -9,16 +11,17 @@ Automatically keep your partner informed about your schedule. When you add an ev
 ```
 You add "Movie at Alamo Drafthouse" to your calendar
     → App detects it within the hour
-    → Dashboard shows: 'Notify Sara about "Movie at Alamo"? [Yes] [Skip]'
-    → You click Yes
+    → You get a notification-style prompt on the web app:
+      'Notify Sara about "Movie at Alamo"? [Yes] [Skip]'
+    → You tap Yes
     → App creates "Alex at movie (Alamo Drafthouse)" on your calendar
     → Sara gets a Google Calendar invite automatically
 ```
 
 ## Prerequisites
 
-- Python 3.11+
 - A Google account (for Google Cloud Console — no billing required)
+- A free [PythonAnywhere](https://www.pythonanywhere.com) account (hosts the app)
 
 ## Setup
 
@@ -70,72 +73,141 @@ The OAuth settings are under **Google Auth platform** in the left sidebar.
 4. Name: `Calendar Sync Desktop`
 5. Click **Create**
 6. Click **Download JSON** on the popup
-7. Save the downloaded file as `credentials.json` in the `calendar-sync/` folder
+7. Save the file — you'll upload it to PythonAnywhere in Step 6
 
-### Step 5: Configure
+### Step 5: Create a PythonAnywhere Account
 
+1. Go to [pythonanywhere.com](https://www.pythonanywhere.com) and sign up for a free **Beginner** account
+2. Note your username (e.g., `alexnear`) — your app will be at `https://alexnear.pythonanywhere.com`
+
+### Step 6: Upload the Code to PythonAnywhere
+
+1. On PythonAnywhere, go to the **Files** tab
+2. Navigate to `/home/YOUR_USERNAME/`
+3. Upload all files from the `calendar-sync/` folder, keeping the folder structure:
+   - Upload `app.py`, `calendar_service.py`, `config.py`, `database.py`, `event_filter.py`, `requirements.txt`, `setup_auth.py`, `wsgi.py`, `scheduled_check.py`, `.env.example`
+   - Create a `templates/` folder and upload `dashboard.html` into it
+   - Create a `static/` folder and upload `manifest.json`, `service-worker.js`, `icon-192.png`, `icon-512.png` into it
+   - Upload your `credentials.json` file (from Step 4)
+4. Copy `.env.example` to `.env` and edit it with your email addresses
+
+Alternatively, open a **Bash console** on PythonAnywhere and clone from git:
 ```bash
+cd ~
+git clone -b claude/evaluate-app-ideas-CoQpD https://github.com/alexannear-cmyk/Claude-Code.git
+mv Claude-Code/calendar-sync ~/calendar-sync
+rm -rf Claude-Code
 cd calendar-sync
 cp .env.example .env
+# Edit .env with your emails:
+nano .env
 ```
+Then upload your `credentials.json` file via the Files tab into `~/calendar-sync/`.
 
-Edit `.env` with your email addresses:
-```
-ALEX_EMAIL=your-email@gmail.com
-SARA_EMAIL=annear.sara@gmail.com
-```
+### Step 7: Set Up Virtual Environment on PythonAnywhere
 
-### Step 6: Install Dependencies
+Open a **Bash console** on PythonAnywhere:
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate   # On Windows: .venv\Scripts\activate
+mkvirtualenv calendar-sync --python=python3.11
+cd ~/calendar-sync
 pip install -r requirements.txt
 ```
 
-### Step 7: Authorize Both Users
+### Step 8: Authorize Both Users
 
-This opens a browser window for each user to sign in with Google:
+Still in the PythonAnywhere Bash console:
 
 ```bash
+cd ~/calendar-sync
 python setup_auth.py --user alex
-# A browser window opens — sign in with YOUR Google account
-# Click through the consent prompts and allow access
-
-python setup_auth.py --user sara
-# A browser window opens — Sara signs in with HER Google account
-# She clicks through consent prompts and allows access
 ```
 
-Tokens are saved locally in the `tokens/` folder. You only need to do this once.
-
-### Step 8: Run the App
+This will print a URL since PythonAnywhere can't open a browser. Copy the URL, open it in your browser, sign in with your Google account, authorize the app, and paste the authorization code back into the console.
 
 ```bash
-python app.py
+python setup_auth.py --user sara
 ```
 
-Open your browser to **http://127.0.0.1:5000** to see the dashboard.
+Do the same with Sara's Google account. You only need to do this once.
 
-The app will check both calendars every hour in the background. You can also click to trigger a manual check.
+### Step 9: Configure the Web App on PythonAnywhere
+
+1. Go to the **Web** tab on PythonAnywhere
+2. Click **Add a new web app**
+3. Choose **Manual configuration** (not Flask)
+4. Select **Python 3.11**
+5. In the **Code** section:
+   - Set **Source code** to: `/home/YOUR_USERNAME/calendar-sync`
+   - Set **Working directory** to: `/home/YOUR_USERNAME/calendar-sync`
+6. In the **Virtualenv** section:
+   - Set path to: `/home/YOUR_USERNAME/.virtualenvs/calendar-sync`
+7. Click the **WSGI configuration file** link and replace its entire contents with:
+   ```python
+   import sys
+   import os
+
+   project_dir = '/home/YOUR_USERNAME/calendar-sync'
+   if project_dir not in sys.path:
+       sys.path.insert(0, project_dir)
+
+   # Load environment variables from .env
+   from dotenv import load_dotenv
+   load_dotenv(os.path.join(project_dir, '.env'))
+
+   from app import app as application
+   from database import init_db
+   init_db()
+   ```
+8. Save and click **Reload** on the Web tab
+
+Your app is now live at `https://YOUR_USERNAME.pythonanywhere.com`!
+
+### Step 10: Set Up Hourly Calendar Check
+
+1. Go to the **Tasks** tab on PythonAnywhere
+2. Add a new **Hourly** task with this command:
+   ```
+   cd ~/calendar-sync && /home/YOUR_USERNAME/.virtualenvs/calendar-sync/bin/python scheduled_check.py
+   ```
+3. Save
+
+The app will now check both calendars every hour for new events.
+
+### Step 11: Add to iPhone Home Screen
+
+On your iPhone (and Sara's):
+
+1. Open Safari and go to `https://YOUR_USERNAME.pythonanywhere.com`
+2. Tap the **Share** button (square with arrow)
+3. Scroll down and tap **Add to Home Screen**
+4. Name it "CalSync" (or whatever you like)
+5. Tap **Add**
+
+It now appears on your home screen like a regular app. When you open it, it runs fullscreen without the Safari toolbar.
+
+Sara can do the same on her Mac — just bookmark it or add it as a PWA in Chrome/Safari.
 
 ## Files
 
 | File | Purpose |
 |---|---|
-| `app.py` | Flask web app + background scheduler |
+| `app.py` | Flask web app with dashboard and event checking logic |
+| `wsgi.py` | WSGI entry point for PythonAnywhere |
+| `scheduled_check.py` | Script for PythonAnywhere's hourly scheduled task |
 | `calendar_service.py` | Google Calendar API (read events, create shared events) |
 | `event_filter.py` | Rule-based filtering (decides what's worth sharing) |
 | `database.py` | SQLite storage (processed events, pending prompts) |
 | `config.py` | Configuration from environment variables |
 | `setup_auth.py` | One-time Google OAuth authorization |
-| `templates/dashboard.html` | Web dashboard UI |
+| `templates/dashboard.html` | Web dashboard UI (PWA-enabled) |
+| `static/` | PWA manifest, service worker, app icons |
 | `tests/` | Test suite (32 tests) |
 
 ## Running Tests
 
 ```bash
-source .venv/bin/activate
+pip install pytest
 python -m pytest tests/ -v
 ```
 
@@ -149,13 +221,13 @@ dentist, trip, travel, haircut, pick up kids, events with a location set, etc.
 **Skipped** (not prompted): standups, 1:1s, focus time, gym, reminders,
 work meetings on work calendars, etc.
 
-No AI or external API is used — filtering runs locally and is completely free.
+No AI or external API is used — filtering runs entirely within the app and is completely free.
 
 ## Cost
 
 | Component | Cost |
 |---|---|
 | Google Calendar API | Free |
-| Python + Flask | Free (runs locally) |
-| SQLite | Free (local file) |
+| PythonAnywhere hosting | Free (Beginner plan) |
+| SQLite database | Free (hosted file) |
 | **Total** | **$0/month** |

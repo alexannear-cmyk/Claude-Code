@@ -1,5 +1,6 @@
 .env
 credentials.json
+client_secret_*.json
 tokens/
 calendar_sync.db
 __pycache__/

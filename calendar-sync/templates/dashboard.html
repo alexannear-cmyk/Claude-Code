@@ -2,8 +2,16 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Calendar Sync</title>
+    <!-- PWA -->
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#4a90d9">
+    <!-- iOS PWA support -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="CalSync">
+    <link rel="apple-touch-icon" href="/static/icon-192.png">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -151,5 +159,20 @@
     {% else %}
     <div class="card empty">No history yet.</div>
     {% endif %}
+
+    <div style="margin-top: 24px; text-align: center;">
+        <form method="POST" action="/check" style="display:inline">
+            <button class="btn" type="submit"
+                    style="background: #4a90d9; color: white;">
+                Check Now
+            </button>
+        </form>
+    </div>
+
+    <script>
+        if ("serviceWorker" in navigator) {
+            navigator.serviceWorker.register("/static/service-worker.js");
+        }
+    </script>
 </body>
 </html>
