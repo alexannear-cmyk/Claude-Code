@@ -123,13 +123,18 @@ cd ~/calendar-sync
 python setup_auth.py --user alex
 ```
 
-This will print a URL since PythonAnywhere can't open a browser. Copy the URL, open it in your browser, sign in with your Google account, authorize the app, and paste the authorization code back into the console.
+The script will show you:
+1. A URL to open (on your phone or any browser)
+2. A short code to enter on that page
+3. Sign in with your Google account and approve access
+
+The script waits automatically — once you approve, it saves the token and you're done.
 
 ```bash
 python setup_auth.py --user sara
 ```
 
-Do the same with Sara's Google account. You only need to do this once.
+Same process — Sara opens the URL on her phone, enters the code, and signs in with her Google account. You only need to do this once.
 
 ### Step 9: Configure the Web App on PythonAnywhere
 

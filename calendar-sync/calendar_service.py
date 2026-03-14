@@ -2,11 +2,12 @@
 
 import json
 import os
+import time
 from datetime import datetime, timezone
 
+import requests as http_requests
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
 from config import GOOGLE_CREDENTIALS_FILE, SCOPES, TOKEN_DIR, USERS
@@ -40,20 +41,93 @@ def _get_credentials(user_id: str) -> Credentials:
 
 
 def authorize_user(user_id: str) -> None:
-    """Run the OAuth flow for a user and save the token locally.
+    """Run the OAuth Device Flow for a user and save the token locally.
 
-    This opens a browser for the user to sign in.
+    Works anywhere — PythonAnywhere, headless servers, etc.
+    Prints a URL and code. Open the URL on any device (phone, laptop),
+    enter the code, and sign in. The script waits automatically.
     """
     if user_id not in USERS:
         raise ValueError(f"Unknown user: {user_id}. Must be one of: {list(USERS.keys())}")
 
-    print(f"Authorizing {user_id} ({USERS[user_id]['email']})...")
-    print("A browser window will open. Sign in with the correct Google account.")
+    # Load client credentials from the downloaded JSON
+    with open(GOOGLE_CREDENTIALS_FILE) as f:
+        cred_data = json.load(f)
 
-    flow = InstalledAppFlow.from_client_secrets_file(
-        GOOGLE_CREDENTIALS_FILE, SCOPES
+    # Handle both "installed" and "web" credential types
+    client_info = cred_data.get("installed") or cred_data.get("web")
+    if not client_info:
+        raise ValueError("Invalid credentials.json format")
+
+    client_id = client_info["client_id"]
+    client_secret = client_info["client_secret"]
+
+    print(f"Authorizing {user_id} ({USERS[user_id]['email']})...")
+
+    # Step 1: Request device code
+    resp = http_requests.post(
+        "https://oauth2.googleapis.com/device/code",
+        data={
+            "client_id": client_id,
+            "scope": " ".join(SCOPES),
+        },
     )
-    credentials = flow.run_local_server(port=0)
+    resp.raise_for_status()
+    device_data = resp.json()
+
+    user_code = device_data["user_code"]
+    verification_url = device_data["verification_url"]
+    device_code = device_data["device_code"]
+    interval = device_data.get("interval", 5)
+
+    print()
+    print("=" * 60)
+    print(f"1. Open this URL on your phone or any browser:")
+    print()
+    print(f"   {verification_url}")
+    print()
+    print(f"2. Enter this code:  {user_code}")
+    print()
+    print(f"3. Sign in with: {USERS[user_id]['email']}")
+    print("=" * 60)
+    print()
+    print("Waiting for you to approve...")
+
+    # Step 2: Poll for authorization
+    while True:
+        time.sleep(interval)
+        token_resp = http_requests.post(
+            "https://oauth2.googleapis.com/token",
+            data={
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "device_code": device_code,
+                "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
+            },
+        )
+        token_data = token_resp.json()
+
+        if "access_token" in token_data:
+            break
+
+        error = token_data.get("error")
+        if error == "authorization_pending":
+            continue
+        elif error == "slow_down":
+            interval += 2
+            continue
+        else:
+            raise RuntimeError(f"Authorization failed: {token_data}")
+
+    # Step 3: Save the token
+    credentials = Credentials(
+        token=token_data["access_token"],
+        refresh_token=token_data.get("refresh_token"),
+        token_uri="https://oauth2.googleapis.com/token",
+        client_id=client_id,
+        client_secret=client_secret,
+        scopes=SCOPES,
+    )
 
     token_path = _get_token_path(user_id)
     with open(token_path, "w") as f:
