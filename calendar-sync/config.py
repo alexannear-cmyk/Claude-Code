@@ -2,22 +2,36 @@
 
 import os
 
+# Base directory (where this file lives)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Google Calendar OAuth
-GOOGLE_CREDENTIALS_FILE = os.environ.get(
-    "GOOGLE_CREDENTIALS_FILE", "credentials.json"
+# SQLite database path
+DATABASE_PATH = os.environ.get(
+    "DATABASE_PATH", os.path.join(BASE_DIR, "calendar_sync.db")
 )
 
-# Anthropic
-ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+# Google Calendar OAuth credentials file (downloaded from GCP console)
+GOOGLE_CREDENTIALS_FILE = os.environ.get(
+    "GOOGLE_CREDENTIALS_FILE", os.path.join(BASE_DIR, "credentials.json")
+)
 
-# Twilio
-TWILIO_ACCOUNT_SID = os.environ.get("TWILIO_ACCOUNT_SID", "")
-TWILIO_AUTH_TOKEN = os.environ.get("TWILIO_AUTH_TOKEN", "")
-TWILIO_PHONE_NUMBER = os.environ.get("TWILIO_PHONE_NUMBER", "")
+# Directory to store OAuth tokens locally
+TOKEN_DIR = os.environ.get(
+    "TOKEN_DIR", os.path.join(BASE_DIR, "tokens")
+)
 
-# Google Cloud project (for Firestore)
-GCP_PROJECT_ID = os.environ.get("GCP_PROJECT_ID", "")
+# Flask secret key (for session security)
+SECRET_KEY = os.environ.get("SECRET_KEY", "change-me-in-production")
+
+# Flask host/port
+HOST = os.environ.get("HOST", "127.0.0.1")
+PORT = int(os.environ.get("PORT", "5000"))
+
+# How often to check calendars (in minutes)
+CHECK_INTERVAL_MINUTES = int(os.environ.get("CHECK_INTERVAL_MINUTES", "60"))
+
+# How far back to look for events on first run (in hours)
+INITIAL_LOOKBACK_HOURS = int(os.environ.get("INITIAL_LOOKBACK_HOURS", "24"))
 
 # User configuration
 USERS = {
@@ -33,8 +47,5 @@ USERS = {
     },
 }
 
-# How far back to look for events on first run (in hours)
-INITIAL_LOOKBACK_HOURS = 24
-
-# Calendar scopes
+# Google Calendar OAuth scopes
 SCOPES = ["https://www.googleapis.com/auth/calendar"]

@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calendar Sync</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            padding: 20px;
+            max-width: 700px;
+            margin: 0 auto;
+        }
+        h1 { margin-bottom: 8px; }
+        .subtitle { color: #666; margin-bottom: 24px; }
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin: 24px 0 12px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #ddd;
+        }
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .card .event-title { font-weight: 600; font-size: 16px; }
+        .card .event-meta { color: #666; font-size: 14px; margin-top: 4px; }
+        .card .event-suggested {
+            margin-top: 8px;
+            padding: 8px 12px;
+            background: #f0f4ff;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .card .actions { margin-top: 12px; display: flex; gap: 8px; }
+        .btn {
+            padding: 8px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .btn-yes { background: #22c55e; color: white; }
+        .btn-yes:hover { background: #16a34a; }
+        .btn-no { background: #ef4444; color: white; }
+        .btn-no:hover { background: #dc2626; }
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .badge-accepted { background: #dcfce7; color: #166534; }
+        .badge-dismissed { background: #fee2e2; color: #991b1b; }
+        .badge-pending { background: #fef3c7; color: #92400e; }
+        .empty { color: #999; font-style: italic; padding: 20px; text-align: center; }
+        .status-bar {
+            background: white;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            font-size: 14px;
+            color: #666;
+        }
+        .flash {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-size: 14px;
+        }
+        .flash-success { background: #dcfce7; color: #166534; }
+        .flash-error { background: #fee2e2; color: #991b1b; }
+    </style>
+</head>
+<body>
+    <h1>Calendar Sync</h1>
+    <p class="subtitle">Keep each other in the loop</p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    {% for category, message in messages %}
+    <div class="flash flash-{{ category }}">{{ message }}</div>
+    {% endfor %}
+    {% endif %}
+    {% endwith %}
+
+    <div class="status-bar">
+        Last check: {{ last_check or "Not yet run" }}
+    </div>
+
+    <div class="section-title">
+        Pending ({{ pending|length }})
+    </div>
+
+    {% if pending %}
+    {% for prompt in pending %}
+    <div class="card">
+        <div class="event-title">{{ prompt.event_summary }}</div>
+        <div class="event-meta">
+            {{ prompt.event_start }} &middot;
+            {{ prompt.user_id | capitalize }}'s calendar
+        </div>
+        <div class="event-suggested">
+            Will create: <strong>{{ prompt.suggested_summary }}</strong>
+            &rarr; invite {{ prompt.partner_id | capitalize }}
+        </div>
+        <div class="actions">
+            <form method="POST" action="/respond/{{ prompt.id }}" style="display:inline">
+                <input type="hidden" name="action" value="accept">
+                <button class="btn btn-yes" type="submit">Yes, notify {{ prompt.partner_id | capitalize }}</button>
+            </form>
+            <form method="POST" action="/respond/{{ prompt.id }}" style="display:inline">
+                <input type="hidden" name="action" value="dismiss">
+                <button class="btn btn-no" type="submit">Skip</button>
+            </form>
+        </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="card empty">No pending events to review. You're all caught up!</div>
+    {% endif %}
+
+    <div class="section-title">Recent History</div>
+
+    {% if history %}
+    {% for item in history %}
+    <div class="card">
+        <div class="event-title">
+            {{ item.event_summary }}
+            <span class="badge badge-{{ item.status }}">{{ item.status }}</span>
+        </div>
+        <div class="event-meta">
+            {{ item.event_start }} &middot;
+            {{ item.user_id | capitalize }} &rarr; {{ item.partner_id | capitalize }}
+        </div>
+        {% if item.status == 'accepted' %}
+        <div class="event-meta">Created as: {{ item.suggested_summary }}</div>
+        {% endif %}
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="card empty">No history yet.</div>
+    {% endif %}
+</body>
+</html>

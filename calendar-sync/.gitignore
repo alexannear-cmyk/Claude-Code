@@ -1,5 +1,8 @@
 .env
 credentials.json
+tokens/
+calendar_sync.db
 __pycache__/
 *.pyc
 .venv/
+.pytest_cache/

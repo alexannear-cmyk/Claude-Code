@@ -1,43 +1,65 @@
 """Google Calendar read/write operations."""
 
+import json
+import os
 from datetime import datetime, timezone
 
 from google.auth.transport.requests import Request
-from google.cloud import firestore
 from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
-from config import GCP_PROJECT_ID, SCOPES, USERS
+from config import GOOGLE_CREDENTIALS_FILE, SCOPES, TOKEN_DIR, USERS
+
+
+def _get_token_path(user_id: str) -> str:
+    """Get the path to a user's token file."""
+    os.makedirs(TOKEN_DIR, exist_ok=True)
+    return os.path.join(TOKEN_DIR, f"{user_id}_token.json")
 
 
 def _get_credentials(user_id: str) -> Credentials:
-    """Load OAuth credentials for a user from Firestore."""
-    db = firestore.Client(project=GCP_PROJECT_ID)
-    doc = db.collection("user_tokens").document(user_id).get()
-    if not doc.exists:
+    """Load OAuth credentials for a user from local token file."""
+    token_path = _get_token_path(user_id)
+
+    if not os.path.exists(token_path):
         raise ValueError(
             f"No stored credentials for {user_id}. Run setup_auth.py first."
         )
 
-    data = doc.to_dict()
-    creds = Credentials(
-        token=data["token"],
-        refresh_token=data["refresh_token"],
-        token_uri=data["token_uri"],
-        client_id=data["client_id"],
-        client_secret=data["client_secret"],
-        scopes=SCOPES,
-    )
+    creds = Credentials.from_authorized_user_file(token_path, SCOPES)
 
     # Refresh if expired
     if creds.expired and creds.refresh_token:
         creds.refresh(Request())
-        # Update stored token
-        db.collection("user_tokens").document(user_id).update({
-            "token": creds.token,
-        })
+        # Save refreshed token
+        with open(token_path, "w") as f:
+            f.write(creds.to_json())
 
     return creds
+
+
+def authorize_user(user_id: str) -> None:
+    """Run the OAuth flow for a user and save the token locally.
+
+    This opens a browser for the user to sign in.
+    """
+    if user_id not in USERS:
+        raise ValueError(f"Unknown user: {user_id}. Must be one of: {list(USERS.keys())}")
+
+    print(f"Authorizing {user_id} ({USERS[user_id]['email']})...")
+    print("A browser window will open. Sign in with the correct Google account.")
+
+    flow = InstalledAppFlow.from_client_secrets_file(
+        GOOGLE_CREDENTIALS_FILE, SCOPES
+    )
+    credentials = flow.run_local_server(port=0)
+
+    token_path = _get_token_path(user_id)
+    with open(token_path, "w") as f:
+        f.write(credentials.to_json())
+
+    print(f"Successfully authorized {user_id}! Token saved to {token_path}")
 
 
 def _get_service(user_id: str):
@@ -47,12 +69,10 @@ def _get_service(user_id: str):
 
 
 def get_calendar_list(user_id: str) -> list[dict]:
-    """List all calendars for a user."""
+    """List all calendars the user owns or can write to."""
     service = _get_service(user_id)
     result = service.calendarList().list().execute()
     calendars = result.get("items", [])
-    # Only return calendars the user owns (skip subscribed read-only ones
-    # like holidays, unless they have write access)
     return [
         {
             "id": cal["id"],
@@ -68,10 +88,7 @@ def get_calendar_list(user_id: str) -> list[dict]:
 def get_recent_events(
     user_id: str, since: datetime, calendar_ids: list[str] | None = None
 ) -> list[dict]:
-    """Fetch events created or modified since the given timestamp.
-
-    If calendar_ids is None, fetches from all owned calendars.
-    """
+    """Fetch events created or modified since the given timestamp."""
     service = _get_service(user_id)
 
     if calendar_ids is None:
@@ -80,6 +97,10 @@ def get_recent_events(
 
     since_rfc = since.astimezone(timezone.utc).isoformat()
     events = []
+
+    # Build a calendar ID -> name mapping in one pass
+    all_calendars = get_calendar_list(user_id)
+    cal_names = {cal["id"]: cal["summary"] for cal in all_calendars}
 
     for cal_id in calendar_ids:
         try:
@@ -95,17 +116,11 @@ def get_recent_events(
                 .execute()
             )
         except Exception:
-            # Skip calendars that error (e.g., permissions issues)
             continue
 
-        cal_name = cal_id  # Default to ID
-        for cal in get_calendar_list(user_id):
-            if cal["id"] == cal_id:
-                cal_name = cal["summary"]
-                break
+        cal_name = cal_names.get(cal_id, cal_id)
 
         for event in result.get("items", []):
-            # Skip cancelled events
             if event.get("status") == "cancelled":
                 continue
 
@@ -136,14 +151,13 @@ def create_notification_event(
     end_time: str,
     invitee_email: str,
 ) -> dict:
-    """Create a notification event on the creator's primary calendar
-    and invite the other person.
+    """Create a notification event and invite the partner.
 
     Args:
         creator_user_id: The user creating the event (e.g., "alex")
         summary: Event title (e.g., "Alex at movie (Alamo Drafthouse)")
-        start_time: ISO 8601 datetime string
-        end_time: ISO 8601 datetime string
+        start_time: ISO 8601 datetime or date string
+        end_time: ISO 8601 datetime or date string
         invitee_email: Email to invite (the partner)
 
     Returns:
@@ -151,8 +165,7 @@ def create_notification_event(
     """
     service = _get_service(creator_user_id)
 
-    # Determine if this is an all-day event (date only, no time component)
-    is_all_day = len(start_time) <= 10  # "2026-03-18" vs "2026-03-18T18:00:00-05:00"
+    is_all_day = len(start_time) <= 10
 
     if is_all_day:
         start_body = {"date": start_time}
@@ -166,7 +179,6 @@ def create_notification_event(
         "start": start_body,
         "end": end_body,
         "attendees": [{"email": invitee_email}],
-        # Send email notification to the invitee
         "reminders": {"useDefault": True},
     }
 
@@ -175,7 +187,7 @@ def create_notification_event(
         .insert(
             calendarId="primary",
             body=event_body,
-            sendUpdates="all",  # Sends invite email to attendees
+            sendUpdates="all",
         )
         .execute()
     )
