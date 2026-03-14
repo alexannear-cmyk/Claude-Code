@@ -37,20 +37,30 @@ You add "Movie at Alamo Drafthouse" to your calendar
 
 ### Step 3: Set Up OAuth Consent Screen
 
-1. Go to **APIs & Services → OAuth consent screen**
-2. Choose **External**, click **Create**
+The OAuth settings are under **Google Auth platform** in the left sidebar.
+
+**3a. Branding**
+1. Go to **Google Auth platform → Branding**
+2. If you see "Get Started", click it
 3. Fill in:
    - App name: `Calendar Sync`
    - User support email: your email
    - Developer contact: your email
-4. Click **Save and Continue**
-5. On the **Scopes** page, click **Add or Remove Scopes**
-   - Find and check `https://www.googleapis.com/auth/calendar`
-   - Click **Update**, then **Save and Continue**
-6. On the **Test users** page, click **Add Users**
-   - Add your email AND Sara's email (`annear.sara@gmail.com`)
-   - Click **Save and Continue**
-7. Click **Back to Dashboard**
+4. Save
+
+**3b. Audience**
+1. Go to **Google Auth platform → Audience**
+2. Set user type to **External** (if not already)
+3. Under **Test users**, click **Add Users**
+4. Add your email AND Sara's email (`annear.sara@gmail.com`)
+5. Save
+
+**3c. Data Access (Scopes)**
+1. Go to **Google Auth platform → Data Access**
+2. Click **Add or Remove Scopes**
+3. Search for `calendar` or paste: `https://www.googleapis.com/auth/calendar`
+4. Check it, click **Update**
+5. Save
 
 ### Step 4: Create OAuth Credentials
 
