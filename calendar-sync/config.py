@@ -51,5 +51,10 @@ USERS = {
     },
 }
 
+# VAPID keys for Web Push Notifications
+VAPID_PRIVATE_KEY = os.environ.get("VAPID_PRIVATE_KEY", "")
+VAPID_PUBLIC_KEY = os.environ.get("VAPID_PUBLIC_KEY", "")
+VAPID_CLAIM_EMAIL = os.environ.get("VAPID_CLAIM_EMAIL", "mailto:admin@example.com")
+
 # Google Calendar OAuth scopes
 SCOPES = ["https://www.googleapis.com/auth/calendar"]

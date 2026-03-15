@@ -170,9 +170,35 @@
     </div>
 
     <script>
-        if ("serviceWorker" in navigator) {
-            navigator.serviceWorker.register("/static/service-worker.js");
+        async function setupPush() {
+            if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+
+            const reg = await navigator.serviceWorker.register("/static/service-worker.js");
+            await navigator.serviceWorker.ready;
+
+            let sub = await reg.pushManager.getSubscription();
+            if (sub) return;
+
+            const resp = await fetch("/push/vapid-public-key");
+            const vapidPublicKey = await resp.text();
+
+            const padding = "=".repeat((4 - (vapidPublicKey.length % 4)) % 4);
+            const raw = atob(vapidPublicKey.replace(/-/g, "+").replace(/_/g, "/") + padding);
+            const key = new Uint8Array(raw.length);
+            for (let i = 0; i < raw.length; i++) key[i] = raw.charCodeAt(i);
+
+            sub = await reg.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: key,
+            });
+
+            await fetch("/push/subscribe", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(sub.toJSON()),
+            });
         }
+        setupPush().catch(err => console.warn("Push setup failed:", err));
     </script>
 </body>
 </html>

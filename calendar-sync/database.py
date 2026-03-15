@@ -49,6 +49,12 @@ def init_db(db_path: str | None = None) -> None:
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS push_subscriptions (
+                endpoint TEXT PRIMARY KEY,
+                subscription_json TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
         """)
         conn.commit()
     finally:
@@ -199,6 +205,42 @@ def set_last_check_time(
             "INSERT OR REPLACE INTO app_state (key, value) VALUES (?, ?)",
             (f"last_check_{user_id}", timestamp),
         )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def save_push_subscription(subscription_json: str, db_path: str | None = None) -> None:
+    """Save or update a push subscription."""
+    import json
+    endpoint = json.loads(subscription_json)["endpoint"]
+    conn = get_connection(db_path)
+    try:
+        conn.execute(
+            "INSERT OR REPLACE INTO push_subscriptions (endpoint, subscription_json, created_at) "
+            "VALUES (?, ?, ?)",
+            (endpoint, subscription_json, datetime.now(timezone.utc).isoformat()),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_all_push_subscriptions(db_path: str | None = None) -> list[str]:
+    """Return all stored subscription JSON strings."""
+    conn = get_connection(db_path)
+    try:
+        rows = conn.execute("SELECT subscription_json FROM push_subscriptions").fetchall()
+        return [row["subscription_json"] for row in rows]
+    finally:
+        conn.close()
+
+
+def delete_push_subscription(endpoint: str, db_path: str | None = None) -> None:
+    """Remove a stale subscription."""
+    conn = get_connection(db_path)
+    try:
+        conn.execute("DELETE FROM push_subscriptions WHERE endpoint = ?", (endpoint,))
         conn.commit()
     finally:
         conn.close()

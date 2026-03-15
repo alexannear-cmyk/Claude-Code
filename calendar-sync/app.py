@@ -3,11 +3,13 @@
 Run with: python app.py
 """
 
+import json
 import logging
 from datetime import datetime, timedelta, timezone
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from flask import Flask, flash, redirect, render_template, request, url_for
+from pywebpush import webpush, WebPushException
 
 import database as db
 from calendar_service import create_notification_event, get_recent_events
@@ -18,6 +20,9 @@ from config import (
     PORT,
     SECRET_KEY,
     USERS,
+    VAPID_CLAIM_EMAIL,
+    VAPID_PRIVATE_KEY,
+    VAPID_PUBLIC_KEY,
 )
 from event_filter import evaluate_event
 
@@ -109,7 +114,38 @@ def check_new_events() -> dict:
         "Check complete: %d events found, %d prompts created",
         results["events_found"], results["prompts_created"],
     )
+
+    if results["prompts_created"] > 0:
+        send_push_notifications(
+            title="Calendar Sync",
+            body=f"{results['prompts_created']} new event(s) to review",
+        )
+
     return results
+
+
+def send_push_notifications(title: str, body: str) -> None:
+    """Send a push notification to all stored subscriptions."""
+    if not VAPID_PRIVATE_KEY:
+        logger.warning("VAPID_PRIVATE_KEY not set, skipping push notifications")
+        return
+
+    payload = json.dumps({"title": title, "body": body})
+    for sub_json in db.get_all_push_subscriptions():
+        try:
+            webpush(
+                subscription_info=json.loads(sub_json),
+                data=payload,
+                vapid_private_key=VAPID_PRIVATE_KEY,
+                vapid_claims={"sub": VAPID_CLAIM_EMAIL},
+            )
+        except WebPushException as e:
+            if e.response and e.response.status_code in (404, 410):
+                endpoint = json.loads(sub_json)["endpoint"]
+                db.delete_push_subscription(endpoint)
+                logger.info("Removed stale push subscription: %s", endpoint[:60])
+            else:
+                logger.error("Push failed: %s", e)
 
 
 @app.route("/")
@@ -166,6 +202,22 @@ def respond(prompt_id: int):
         flash("Skipped.", "success")
 
     return redirect(url_for("dashboard"))
+
+
+@app.route("/push/vapid-public-key")
+def vapid_public_key():
+    """Serve the VAPID public key for push subscription."""
+    return VAPID_PUBLIC_KEY
+
+
+@app.route("/push/subscribe", methods=["POST"])
+def push_subscribe():
+    """Store a push subscription from the browser."""
+    subscription = request.get_json()
+    if not subscription or "endpoint" not in subscription:
+        return "Invalid subscription", 400
+    db.save_push_subscription(json.dumps(subscription))
+    return "OK", 201
 
 
 @app.route("/check", methods=["POST"])
