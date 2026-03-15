@@ -41,26 +41,81 @@ def _get_credentials(user_id: str) -> Credentials:
 
 
 def authorize_user(user_id: str) -> None:
-    """Run OAuth authorization for a user using google_auth_oauthlib.
+    """Run OAuth authorization for a user.
 
-    Starts a local HTTP server to receive the OAuth callback.
-    Run this on a machine with a browser.
+    Prints a URL to open in a browser. After granting access, the browser
+    redirects to localhost which will fail — copy the authorization code
+    from the redirect URL and paste it back into the console.
     """
-    from google_auth_oauthlib.flow import InstalledAppFlow
-
     if user_id not in USERS:
         raise ValueError(f"Unknown user: {user_id}. Must be one of: {list(USERS.keys())}")
 
-    print(f"Authorizing {user_id} ({USERS[user_id]['email']})...")
+    with open(GOOGLE_CREDENTIALS_FILE) as f:
+        cred_data = json.load(f)
 
-    flow = InstalledAppFlow.from_client_secrets_file(GOOGLE_CREDENTIALS_FILE, SCOPES)
-    creds = flow.run_local_server(port=8080, prompt="consent", access_type="offline")
+    client_info = cred_data.get("installed") or cred_data.get("web")
+    if not client_info:
+        raise ValueError("Invalid credentials.json format")
+
+    client_id = client_info["client_id"]
+    client_secret = client_info["client_secret"]
+
+    redirect_uri = "http://localhost:1"
+    auth_url = (
+        "https://accounts.google.com/o/oauth2/v2/auth"
+        f"?client_id={client_id}"
+        f"&redirect_uri={redirect_uri}"
+        "&response_type=code"
+        f"&scope={'+'.join(SCOPES)}"
+        "&access_type=offline"
+        "&prompt=consent"
+    )
+
+    print(f"\nAuthorizing {user_id} ({USERS[user_id]['email']})...\n")
+    print("=" * 60)
+    print("1. Open this URL in your browser:\n")
+    print(f"   {auth_url}\n")
+    print(f"2. Sign in with: {USERS[user_id]['email']}")
+    print("3. Click 'Allow' to grant calendar access")
+    print("4. The page will fail to load — that's OK!")
+    print("5. Look at the URL bar. It will look like:")
+    print("   http://localhost:1/?code=XXXXX&scope=...")
+    print("6. Copy everything between 'code=' and '&scope'")
+    print("   and paste it below")
+    print("=" * 60)
+
+    auth_code = input("\nPaste the code here: ").strip()
+
+    token_resp = http_requests.post(
+        "https://oauth2.googleapis.com/token",
+        data={
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "code": auth_code,
+            "grant_type": "authorization_code",
+            "redirect_uri": redirect_uri,
+        },
+    )
+
+    if token_resp.status_code != 200:
+        raise RuntimeError(f"Token exchange failed: {token_resp.json()}")
+
+    token_data = token_resp.json()
+
+    credentials = Credentials(
+        token=token_data["access_token"],
+        refresh_token=token_data.get("refresh_token"),
+        token_uri="https://oauth2.googleapis.com/token",
+        client_id=client_id,
+        client_secret=client_secret,
+        scopes=SCOPES,
+    )
 
     token_path = _get_token_path(user_id)
     with open(token_path, "w") as f:
-        f.write(creds.to_json())
+        f.write(credentials.to_json())
 
-    print(f"Successfully authorized {user_id}! Token saved to {token_path}")
+    print(f"\nSuccessfully authorized {user_id}! Token saved to {token_path}")
 
 
 def _get_service(user_id: str):
