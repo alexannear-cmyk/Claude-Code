@@ -41,11 +41,11 @@ def _get_credentials(user_id: str) -> Credentials:
 
 
 def authorize_user(user_id: str) -> None:
-    """Run the OAuth Device Flow for a user and save the token locally.
+    """Run OAuth authorization for a user and save the token locally.
 
-    Works anywhere — PythonAnywhere, headless servers, etc.
-    Prints a URL and code. Open the URL on any device (phone, laptop),
-    enter the code, and sign in. The script waits automatically.
+    Works on headless servers like PythonAnywhere.
+    Prints a URL — open it in any browser, sign in, and paste back the
+    authorization code.
     """
     if user_id not in USERS:
         raise ValueError(f"Unknown user: {user_id}. Must be one of: {list(USERS.keys())}")
@@ -64,60 +64,49 @@ def authorize_user(user_id: str) -> None:
 
     print(f"Authorizing {user_id} ({USERS[user_id]['email']})...")
 
-    # Step 1: Request device code
-    resp = http_requests.post(
-        "https://oauth2.googleapis.com/device/code",
+    # Step 1: Build authorization URL with redirect to localhost
+    # (Google shows the auth code on screen for Desktop apps)
+    redirect_uri = "urn:ietf:wg:oauth:2.0:oob"
+    auth_url = (
+        "https://accounts.google.com/o/oauth2/v2/auth"
+        f"?client_id={client_id}"
+        f"&redirect_uri={redirect_uri}"
+        "&response_type=code"
+        f"&scope={'+'.join(SCOPES)}"
+        "&access_type=offline"
+        "&prompt=consent"
+    )
+
+    print()
+    print("=" * 60)
+    print("1. Open this URL in your browser:")
+    print()
+    print(f"   {auth_url}")
+    print()
+    print(f"2. Sign in with: {USERS[user_id]['email']}")
+    print("3. Click 'Allow' to grant calendar access")
+    print("4. Copy the authorization code and paste it below")
+    print("=" * 60)
+    print()
+
+    auth_code = input("Paste the authorization code here: ").strip()
+
+    # Step 2: Exchange the code for tokens
+    token_resp = http_requests.post(
+        "https://oauth2.googleapis.com/token",
         data={
             "client_id": client_id,
-            "scope": " ".join(SCOPES),
+            "client_secret": client_secret,
+            "code": auth_code,
+            "grant_type": "authorization_code",
+            "redirect_uri": redirect_uri,
         },
     )
-    resp.raise_for_status()
-    device_data = resp.json()
 
-    user_code = device_data["user_code"]
-    verification_url = device_data["verification_url"]
-    device_code = device_data["device_code"]
-    interval = device_data.get("interval", 5)
+    if token_resp.status_code != 200:
+        raise RuntimeError(f"Token exchange failed: {token_resp.json()}")
 
-    print()
-    print("=" * 60)
-    print(f"1. Open this URL on your phone or any browser:")
-    print()
-    print(f"   {verification_url}")
-    print()
-    print(f"2. Enter this code:  {user_code}")
-    print()
-    print(f"3. Sign in with: {USERS[user_id]['email']}")
-    print("=" * 60)
-    print()
-    print("Waiting for you to approve...")
-
-    # Step 2: Poll for authorization
-    while True:
-        time.sleep(interval)
-        token_resp = http_requests.post(
-            "https://oauth2.googleapis.com/token",
-            data={
-                "client_id": client_id,
-                "client_secret": client_secret,
-                "device_code": device_code,
-                "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
-            },
-        )
-        token_data = token_resp.json()
-
-        if "access_token" in token_data:
-            break
-
-        error = token_data.get("error")
-        if error == "authorization_pending":
-            continue
-        elif error == "slow_down":
-            interval += 2
-            continue
-        else:
-            raise RuntimeError(f"Authorization failed: {token_data}")
+    token_data = token_resp.json()
 
     # Step 3: Save the token
     credentials = Credentials(
