@@ -148,6 +148,15 @@ def send_push_notifications(title: str, body: str) -> None:
                 logger.error("Push failed: %s", e)
 
 
+@app.route("/service-worker.js")
+def service_worker():
+    """Serve service worker from root scope."""
+    return app.send_static_file("service-worker.js"), 200, {
+        "Content-Type": "application/javascript",
+        "Service-Worker-Allowed": "/",
+    }
+
+
 @app.route("/")
 def dashboard():
     """Main dashboard showing pending prompts and recent history."""
