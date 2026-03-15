@@ -41,86 +41,24 @@ def _get_credentials(user_id: str) -> Credentials:
 
 
 def authorize_user(user_id: str) -> None:
-    """Run OAuth authorization for a user and save the token locally.
+    """Run OAuth authorization for a user using google_auth_oauthlib.
 
-    Works on headless servers like PythonAnywhere.
-    Prints a URL — open it in any browser, sign in, and paste back the
-    authorization code.
+    Starts a local HTTP server to receive the OAuth callback.
+    Run this on a machine with a browser.
     """
+    from google_auth_oauthlib.flow import InstalledAppFlow
+
     if user_id not in USERS:
         raise ValueError(f"Unknown user: {user_id}. Must be one of: {list(USERS.keys())}")
 
-    # Load client credentials from the downloaded JSON
-    with open(GOOGLE_CREDENTIALS_FILE) as f:
-        cred_data = json.load(f)
-
-    # Handle both "installed" and "web" credential types
-    client_info = cred_data.get("installed") or cred_data.get("web")
-    if not client_info:
-        raise ValueError("Invalid credentials.json format")
-
-    client_id = client_info["client_id"]
-    client_secret = client_info["client_secret"]
-
     print(f"Authorizing {user_id} ({USERS[user_id]['email']})...")
 
-    # Step 1: Build authorization URL with redirect to localhost
-    # (Google shows the auth code on screen for Desktop apps)
-    redirect_uri = "urn:ietf:wg:oauth:2.0:oob"
-    auth_url = (
-        "https://accounts.google.com/o/oauth2/v2/auth"
-        f"?client_id={client_id}"
-        f"&redirect_uri={redirect_uri}"
-        "&response_type=code"
-        f"&scope={'+'.join(SCOPES)}"
-        "&access_type=offline"
-        "&prompt=consent"
-    )
-
-    print()
-    print("=" * 60)
-    print("1. Open this URL in your browser:")
-    print()
-    print(f"   {auth_url}")
-    print()
-    print(f"2. Sign in with: {USERS[user_id]['email']}")
-    print("3. Click 'Allow' to grant calendar access")
-    print("4. Copy the authorization code and paste it below")
-    print("=" * 60)
-    print()
-
-    auth_code = input("Paste the authorization code here: ").strip()
-
-    # Step 2: Exchange the code for tokens
-    token_resp = http_requests.post(
-        "https://oauth2.googleapis.com/token",
-        data={
-            "client_id": client_id,
-            "client_secret": client_secret,
-            "code": auth_code,
-            "grant_type": "authorization_code",
-            "redirect_uri": redirect_uri,
-        },
-    )
-
-    if token_resp.status_code != 200:
-        raise RuntimeError(f"Token exchange failed: {token_resp.json()}")
-
-    token_data = token_resp.json()
-
-    # Step 3: Save the token
-    credentials = Credentials(
-        token=token_data["access_token"],
-        refresh_token=token_data.get("refresh_token"),
-        token_uri="https://oauth2.googleapis.com/token",
-        client_id=client_id,
-        client_secret=client_secret,
-        scopes=SCOPES,
-    )
+    flow = InstalledAppFlow.from_client_secrets_file(GOOGLE_CREDENTIALS_FILE, SCOPES)
+    creds = flow.run_local_server(port=8080, prompt="consent", access_type="offline")
 
     token_path = _get_token_path(user_id)
     with open(token_path, "w") as f:
-        f.write(credentials.to_json())
+        f.write(creds.to_json())
 
     print(f"Successfully authorized {user_id}! Token saved to {token_path}")
 
