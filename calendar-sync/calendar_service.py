@@ -40,13 +40,47 @@ def _get_credentials(user_id: str) -> Credentials:
     return creds
 
 
+def _run_callback_server(port: int, result: dict) -> None:
+    """Run a temporary HTTP server to capture the OAuth callback."""
+    import http.server
+
+    class CallbackHandler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            from urllib.parse import parse_qs, urlparse
+            query = parse_qs(urlparse(self.path).query)
+            if "code" in query:
+                result["code"] = query["code"][0]
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html")
+                self.end_headers()
+                self.wfile.write(
+                    b"<h2>Authorization successful!</h2>"
+                    b"<p>You can close this tab and return to the terminal.</p>"
+                )
+            else:
+                self.send_response(400)
+                self.send_header("Content-Type", "text/html")
+                self.end_headers()
+                self.wfile.write(b"<h2>Authorization failed</h2><p>No code received.</p>")
+
+        def log_message(self, format, *args):
+            pass  # Suppress server logs
+
+    server = http.server.HTTPServer(("127.0.0.1", port), CallbackHandler)
+    server.timeout = 300  # 5-minute timeout
+    server.handle_request()
+    server.server_close()
+
+
 def authorize_user(user_id: str) -> None:
     """Run OAuth authorization for a user.
 
-    Prints a URL to open in a browser. After granting access, the browser
-    redirects to localhost which will fail — copy the authorization code
-    from the redirect URL and paste it back into the console.
+    Starts a temporary local server to capture the OAuth callback automatically
+    when using a desktop browser. For mobile browsers, falls back to manual
+    code copying from the URL bar.
     """
+    import threading
+
     if user_id not in USERS:
         raise ValueError(f"Unknown user: {user_id}. Must be one of: {list(USERS.keys())}")
 
@@ -60,7 +94,20 @@ def authorize_user(user_id: str) -> None:
     client_id = client_info["client_id"]
     client_secret = client_info["client_secret"]
 
-    redirect_uri = "http://localhost:1"
+    # Try to start a local callback server
+    callback_port = 8085
+    callback_result = {}
+    try:
+        server_thread = threading.Thread(
+            target=_run_callback_server, args=(callback_port, callback_result), daemon=True
+        )
+        server_thread.start()
+        redirect_uri = f"http://localhost:{callback_port}"
+        server_running = True
+    except OSError:
+        redirect_uri = "http://localhost:1"
+        server_running = False
+
     auth_url = (
         "https://accounts.google.com/o/oauth2/v2/auth"
         f"?client_id={client_id}"
@@ -73,18 +120,50 @@ def authorize_user(user_id: str) -> None:
 
     print(f"\nAuthorizing {user_id} ({USERS[user_id]['email']})...\n")
     print("=" * 60)
-    print("1. Open this URL in your browser:\n")
+    print("1. Open this URL in a browser on THIS COMPUTER:\n")
     print(f"   {auth_url}\n")
     print(f"2. Sign in with: {USERS[user_id]['email']}")
     print("3. Click 'Allow' to grant calendar access")
-    print("4. The page will fail to load — that's OK!")
-    print("5. Look at the URL bar. It will look like:")
-    print("   http://localhost:1/?code=XXXXX&scope=...")
-    print("6. Copy everything between 'code=' and '&scope'")
-    print("   and paste it below")
+    if server_running:
+        print("4. The browser will show 'Authorization successful!'")
+        print("   and the token will be saved automatically.")
+        print()
+        print("--- ON A PHONE? ---")
+        print("The auto-capture won't work from a phone browser.")
+        print("After clicking Allow, the page will spin. That's OK!")
+        print("Tap the URL/address bar, copy the full URL, and look for")
+        print("the code between 'code=' and '&scope' — paste it below.")
+    else:
+        print("4. The page will fail to load — that's OK!")
+        print("5. Look at the URL bar. It will look like:")
+        print(f"   {redirect_uri}/?code=XXXXX&scope=...")
+        print("6. Copy everything between 'code=' and '&scope'")
+        print("   and paste it below")
     print("=" * 60)
 
-    auth_code = input("\nPaste the code here: ").strip()
+    if server_running:
+        print("\nWaiting for callback (or paste the code manually)...")
+        # Wait for server callback or manual input
+        import select
+        import sys
+
+        server_thread.join(timeout=1)
+        while server_thread.is_alive() and "code" not in callback_result:
+            # Check for manual input (non-blocking)
+            if select.select([sys.stdin], [], [], 1)[0]:
+                manual_code = sys.stdin.readline().strip()
+                if manual_code:
+                    callback_result["code"] = manual_code
+                    break
+
+        if "code" not in callback_result:
+            # Server timed out
+            manual_code = input("\nAuto-capture timed out. Paste the code here: ").strip()
+            callback_result["code"] = manual_code
+
+        auth_code = callback_result["code"]
+    else:
+        auth_code = input("\nPaste the code here: ").strip()
 
     token_resp = http_requests.post(
         "https://oauth2.googleapis.com/token",
