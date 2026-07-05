@@ -566,7 +566,8 @@ gp = [
     ("", None),
     ("1. The baseline is the committed monthly target loaded to your forecast. Variances are vs. "
      "that baseline — never vs. prior year or re-forecast. Baseline moves only via approved change "
-     "request.", None),
+     "request, required for changes with in-year savings impact of $500K+ in any year (proposed "
+     "threshold); smaller items are handled via commentary and do NOT restate the baseline.", None),
     ("2. A reduction COUNTS only if it is (a) labor cost in a committed category — professional "
      "services, managed/outsourced labor, offshore or onshore contractors, in-scope employees; "
      "(b) causally tied to the India transition; (c) realized and visible in the GL; and "
@@ -579,6 +580,10 @@ gp = [
      "reported as a $500K program miss, with commentary and recovery plan.", None),
     ("5. Report NET: gross reductions minus India loaded cost adds. One-time transition costs go on "
      "their own row and are never netted into reductions or run-rate.", None),
+    ("5a. IN-YEAR IS THE COMMITMENT: the enterprise committed in-year savings targets by year for "
+     "2025-2029, allocated by sub-organization. Exit run-rate is a diagnostic only — being 'on "
+     "track on run-rate' never offsets or excuses an in-year miss. Run-rate belongs in recovery-"
+     "plan commentary, not the scorecard.", None),
     ("6. Recognize savings in the month the run-rate reduction first hits the GL — not at contract "
      "signature or vendor notification. Partial months pro rata.", None),
     ("7. No leakage: a reduction is not real if equivalent spend reappears in another cost center, "

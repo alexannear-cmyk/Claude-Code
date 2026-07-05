@@ -21,12 +21,12 @@ The refinement is not to add more headline metrics, but to (a) make one structur
 
 ## 2. The one structural distinction to build in: in-year savings vs. exit run-rate
 
-"Labor arbitrage achievement" should be tracked two ways from day one:
+"Labor arbitrage achievement" should be tracked two ways from day one — but with a clear hierarchy between them:
 
-- **In-year (period) savings $** — what actually lands in this fiscal year's P&L vs. the committed forecast. This is what corporate reporting and the quarterly forecast care about.
-- **Exit run-rate $** — the annualized value of reductions in place at period end. This is what proves the labor mix shift is durable and is what the multi-year business case was built on.
+- **In-year (period) savings $ — the commitment.** The technology enterprise committed in-year savings targets by year for 2025–2029, now allocated as commitments by sub-organization. In-year achievement vs. those targets is the accountability metric, full stop. This is what corporate reporting and the quarterly forecast measure.
+- **Exit run-rate $ — a diagnostic.** The annualized value of reductions in place at period end. It tells you whether the mix shift is durable and whether a recovery plan is credible — but it is context, never a substitute.
 
-The distinction matters because timing slips destroy in-year savings while leaving run-rate intact (a reduction landing in November instead of March is ~90% gone for the year but 100% intact as run-rate). Without both views, every timing miss looks like a program failure, and every program failure can be excused as "timing." The prototype workbook carries both.
+The distinction matters because timing slips destroy in-year savings while leaving run-rate intact (a reduction landing in November instead of March is ~90% gone for the year but 100% intact as run-rate). Tracking both lets you separate a timing problem from a structural one. The critical guardrail — written into the Guiding Principles (§6.2) — is that **run-rate can never offset or excuse an in-year miss**: an org may not argue it is "a little behind but fine because exit rate is on track." A behind org is behind; run-rate belongs in the recovery-plan commentary, not in the scorekeeping. The prototype workbook carries both views with in-year as the headline.
 
 ## 3. The decoupling risk your net metric already covers — keep it net
 

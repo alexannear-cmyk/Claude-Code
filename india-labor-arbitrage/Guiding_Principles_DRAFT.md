@@ -57,7 +57,7 @@ The following may be legitimate favorability for the org's forecast, but they ar
 ## 6. Measurement mechanics
 
 1. **Net calculation:** Net labor arbitrage = (gross run-rate reductions realized in period) − (India loaded costs incurred in period). India loaded cost = comp + benefits + allocated seat/facility/technology recurring costs at the standard loaded rate. **[LEADERSHIP DECISION]** confirm the standard India loaded-cost rate and what allocations are in it.
-2. **Two savings views:** each org reports (a) **in-year savings $** realized in the period and (b) **exit run-rate $** — annualized value of reductions in place at period end. Corporate reporting uses in-year; program health uses both.
+2. **Two savings views — in-year is the commitment:** each org reports (a) **in-year savings $** realized in the period and (b) **exit run-rate $** — annualized value of reductions in place at period end. The technology enterprise committed **in-year savings targets by year for 2025–2029**, now allocated as commitments by sub-organization; in-year achievement vs. those targets is the accountability metric. Exit run-rate is a diagnostic only and is **never an offset or an excuse**: an org behind on in-year savings is behind, regardless of run-rate trajectory. "Run-rate on track" may appear in variance commentary as context for the recovery plan — it does not mitigate, reduce, or re-characterize the in-year miss.
 3. **Recognition timing:** savings are recognized in the month the run-rate cost reduction is first reflected in the GL. Partial months count pro rata.
 4. **One-time transition costs** (severance, knowledge transfer travel, parallel-run/shadowing costs, recruitment fees, facility build-out) are reported separately and are **never netted inside** gross reductions or run-rate savings. They appear in the net program economics view only.
 5. **FX:** report in USD at plan rate; FX variance between plan and actual rates is excluded from arbitrage achievement (it is neither an org's achievement nor its miss). **[LEADERSHIP DECISION]** confirm plan-rate convention matches corporate policy.
@@ -69,6 +69,8 @@ The following may be legitimate favorability for the org's forecast, but they ar
 2. **Evidence.** For each material reported reduction (≥ ${threshold — suggest $250K run-rate} **[LEADERSHIP DECISION]**), the org identifies cost center and expense line on request. Central program finance may sample-test quarterly.
 3. **Variance commentary** is mandatory when any headline metric misses the monthly baseline by more than {10% or $100K, whichever is greater — placeholder}. Commentary must state cause, recovery plan, and expected recovery month.
 4. **Change requests.** Baseline changes (target timing, category mix, scope adds/removals) require a written change request approved by {India program leadership + Technology Finance leadership — confirm approvers}. Approved changes restate the baseline prospectively; history is not rewritten.
+   - **Materiality threshold:** a change request is required — and is the *only* path to a baseline restatement — for any change with an in-year savings impact of **$500K or more in any single year** (proposed threshold — **[LEADERSHIP DECISION]**). Impacts below the threshold do not restate the baseline: the original target stands and the variance is explained through monthly commentary. This keeps the change process reserved for genuinely material events and prevents the baseline from being eroded by an accumulation of small adjustments.
+   - Related changes may not be split into multiple sub-threshold requests to avoid the process; assess materiality on the combined impact.
 5. **True-up cadence.** Quarterly reconciliation of reported achievement against GL trend by category; annual true-up aligned to the corporate close. Discrepancies adjust the next open month, with disclosure.
 6. **Escalation path.** Interpretation questions go to central program finance (owner of this document) first; unresolved or precedent-setting questions go to the leadership forum. Decisions are appended to this document as numbered rulings so the rulebook grows with precedent.
 7. **Submission calendar.** Org inputs due workday {WD+3 — placeholder} each month; consolidation published workday {WD+5 — placeholder}.
@@ -82,6 +84,7 @@ The following may be legitimate favorability for the org's forecast, but they ar
 5. Treatment of opportunistic (out-of-plan) attrition-driven reductions (§6.6).
 6. Evidence threshold and sampling approach (§7.2).
 7. Change request approvers and forum (§7.4).
+8. Change request materiality threshold — proposed at $500K in-year savings impact in any single year (§7.4).
 
 ---
 
