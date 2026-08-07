@@ -1,0 +1,852 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#14110E">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Night Match">
+<meta name="description" content="A number-matching puzzle built for a dark room. Match pairs that are equal or add to ten.">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+<title>Night Match</title>
+<style>
+/* ── Tokens ───────────────────────────────────────────────────────────
+   Deliberately single-theme. This app is a lamp you turn down, not a
+   page that follows the OS. The dimmer stamps data-dim on :root.       */
+:root{
+  --ground:#14110E;
+  --surface:#211C17;
+  --surface-hi:#2C251E;
+  --edge:#352C24;
+  --num:#C9B79C;
+  --num-soft:#6E6153;
+  --ghost:#463C32;
+  --ember:#E39B3C;
+  --ember-deep:#8A5F26;
+  --moss:#86A06A;
+
+  --tile-radius:11px;
+  --gap:5px;
+  --pad:14px;
+
+  --t-fast:120ms;
+  --t-cool:420ms;
+
+  --font-num:ui-rounded,"SF Pro Rounded","Hiragino Maru Gothic ProN",Quicksand,system-ui,-apple-system,sans-serif;
+  --font-ui:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+}
+:root[data-dim="dusk"]{
+  --ground:#1C1813; --surface:#2A2319; --surface-hi:#362D21; --edge:#413628;
+  --num:#E7D8BE; --num-soft:#8A7B69; --ghost:#554839; --ember:#EEA94A;
+}
+:root[data-dim="blackout"]{
+  --ground:#000000; --surface:#100E0C; --surface-hi:#191512; --edge:#221D18;
+  --num:#9C8C77; --num-soft:#514639; --ghost:#2C251E;
+  --ember:#B87C2E; --ember-deep:#63431B; --moss:#5E7049;
+}
+
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  margin:0;
+  background:var(--ground);
+  color:var(--num);
+  font-family:var(--font-ui);
+  -webkit-font-smoothing:antialiased;
+  overscroll-behavior:none;
+  touch-action:manipulation;
+  user-select:none;
+  -webkit-user-select:none;
+  transition:background var(--t-cool) ease;
+}
+
+/* ── App shell ─────────────────────────────────────────────────────── */
+#app{
+  display:flex;
+  flex-direction:column;
+  height:100dvh;
+  max-width:520px;
+  margin-inline:auto;
+  padding:calc(env(safe-area-inset-top) + 10px) var(--pad) calc(env(safe-area-inset-bottom) + 10px);
+  gap:12px;
+}
+
+/* ── Header ────────────────────────────────────────────────────────── */
+header{
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  gap:12px;
+  flex:0 0 auto;
+}
+.wordmark{
+  display:flex;
+  align-items:center;
+  gap:7px;
+  padding:4px 0;
+  border:none;
+  background:none;
+  font-family:var(--font-ui);
+  font-size:.72rem;
+  font-weight:600;
+  letter-spacing:.18em;
+  text-transform:uppercase;
+  color:var(--num-soft);
+  margin:0;
+  cursor:pointer;
+  transition:color var(--t-fast) ease;
+}
+.wordmark:active{color:var(--num)}
+.wordmark:focus-visible{outline:2px solid var(--ember);outline-offset:3px;border-radius:6px}
+.wordmark::after{
+  content:"?";
+  display:grid;
+  place-items:center;
+  width:15px;
+  height:15px;
+  border:1px solid var(--edge);
+  border-radius:50%;
+  font-size:.6rem;
+  letter-spacing:0;
+  color:var(--num-soft);
+}
+.readout{display:flex;gap:18px;align-items:baseline}
+.stat{display:flex;flex-direction:column;align-items:flex-end;gap:1px}
+.stat b{
+  font-family:var(--font-num);
+  font-size:1.05rem;
+  font-weight:600;
+  color:var(--num);
+  font-variant-numeric:tabular-nums;
+  line-height:1;
+}
+.stat span{
+  font-size:.58rem;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  color:var(--num-soft);
+}
+
+/* ── Board ─────────────────────────────────────────────────────────── */
+.board-wrap{
+  flex:1 1 auto;
+  display:flex;
+  flex-direction:column;
+  overflow-y:auto;
+  overflow-x:hidden;
+  -webkit-overflow-scrolling:touch;
+  scrollbar-width:none;
+  border-radius:14px;
+}
+.board-wrap::-webkit-scrollbar{display:none}
+#board{
+  display:grid;
+  grid-template-columns:repeat(9,1fr);
+  gap:var(--gap);
+  align-content:start;
+  width:100%;
+  /* Auto margins centre a short board without clipping a tall one the
+     way justify-content:center would once it starts scrolling. */
+  margin-block:auto;
+  padding-block:4px;
+}
+
+.tile{
+  position:relative;
+  aspect-ratio:1;
+  display:grid;
+  place-items:center;
+  border:none;
+  padding:0;
+  margin:0;
+  border-radius:var(--tile-radius);
+  background:var(--surface);
+  color:var(--num);
+  font-family:var(--font-num);
+  font-size:clamp(.95rem,4.4vw,1.35rem);
+  font-weight:600;
+  font-variant-numeric:tabular-nums;
+  cursor:pointer;
+  transition:background var(--t-fast) ease,color var(--t-fast) ease,transform var(--t-fast) ease,box-shadow var(--t-fast) ease;
+}
+.tile:focus-visible{outline:2px solid var(--ember);outline-offset:2px}
+
+.tile.is-selected{
+  background:var(--surface-hi);
+  color:var(--ember);
+  box-shadow:inset 0 0 0 2px var(--ember);
+  transform:translateY(-1px);
+}
+.tile.is-hint{animation:breathe 1.4s ease-in-out 3}
+.tile.is-wrong{animation:nudge 200ms ease}
+
+/* A matched pair warms, then cools to nothing — never a bright flash. */
+.tile.is-cooling{
+  background:var(--ember-deep);
+  color:var(--ember);
+  box-shadow:none;
+  animation:cool var(--t-cool) ease forwards;
+}
+
+.tile.is-cleared{
+  background:transparent;
+  color:var(--ghost);
+  cursor:default;
+  box-shadow:inset 0 0 0 1px var(--edge);
+}
+.tile.is-cleared::after{content:""}
+
+.row-clearing{animation:sink var(--t-cool) ease forwards}
+
+@keyframes cool{
+  0%{background:var(--ember-deep);color:var(--ember)}
+  100%{background:transparent;color:var(--ghost);box-shadow:inset 0 0 0 1px var(--edge)}
+}
+@keyframes breathe{
+  0%,100%{box-shadow:inset 0 0 0 0 var(--ember-deep)}
+  50%{box-shadow:inset 0 0 0 2px var(--ember-deep)}
+}
+@keyframes nudge{
+  0%,100%{transform:translateX(0)}
+  25%{transform:translateX(-3px)}
+  75%{transform:translateX(3px)}
+}
+@keyframes sink{
+  to{opacity:0;transform:scale(.9)}
+}
+
+/* ── Message line ──────────────────────────────────────────────────── */
+#message{
+  flex:0 0 auto;
+  min-height:1.1rem;
+  text-align:center;
+  font-size:.76rem;
+  letter-spacing:.02em;
+  color:var(--num-soft);
+  transition:color var(--t-fast) ease;
+}
+#message.alert{color:var(--ember)}
+
+/* ── Controls ──────────────────────────────────────────────────────── */
+#controls{
+  flex:0 0 auto;
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:8px;
+}
+.ctrl{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:5px;
+  min-height:56px;
+  padding:8px 4px;
+  border:1px solid var(--edge);
+  border-radius:13px;
+  background:var(--surface);
+  color:var(--num);
+  font-family:var(--font-ui);
+  font-size:.63rem;
+  font-weight:600;
+  letter-spacing:.11em;
+  text-transform:uppercase;
+  cursor:pointer;
+  transition:background var(--t-fast) ease,color var(--t-fast) ease,border-color var(--t-fast) ease,opacity var(--t-fast) ease;
+}
+.ctrl:active{background:var(--surface-hi)}
+.ctrl:focus-visible{outline:2px solid var(--ember);outline-offset:2px}
+.ctrl[disabled]{opacity:.35;cursor:default}
+.ctrl svg{width:19px;height:19px;stroke:currentColor;stroke-width:1.7;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.ctrl.primary{border-color:var(--ember-deep);color:var(--ember)}
+
+/* ── Overlay ───────────────────────────────────────────────────────── */
+#overlay{
+  position:fixed;
+  inset:0;
+  display:none;
+  place-items:center;
+  padding:24px;
+  background:color-mix(in srgb,var(--ground) 92%,transparent);
+  backdrop-filter:blur(3px);
+  z-index:10;
+}
+#overlay.open{display:grid}
+.panel{
+  width:100%;
+  max-width:320px;
+  display:flex;
+  flex-direction:column;
+  gap:16px;
+  padding:26px 22px;
+  border:1px solid var(--edge);
+  border-radius:18px;
+  background:var(--surface);
+  text-align:center;
+}
+.panel h2{
+  margin:0;
+  font-family:var(--font-num);
+  font-size:1.5rem;
+  font-weight:600;
+  color:var(--ember);
+  text-wrap:balance;
+}
+.panel p{margin:0;font-size:.85rem;line-height:1.55;color:var(--num-soft);text-wrap:pretty}
+.panel .final{font-family:var(--font-num);font-size:2.4rem;font-weight:600;color:var(--num);font-variant-numeric:tabular-nums;line-height:1}
+.panel button{
+  padding:13px;
+  border:1px solid var(--ember-deep);
+  border-radius:12px;
+  background:transparent;
+  color:var(--ember);
+  font-family:var(--font-ui);
+  font-size:.72rem;
+  font-weight:600;
+  letter-spacing:.13em;
+  text-transform:uppercase;
+  cursor:pointer;
+}
+.panel button.quiet{border-color:var(--edge);color:var(--num-soft)}
+.panel button:focus-visible{outline:2px solid var(--ember);outline-offset:2px}
+
+/* Rules list inside the help panel */
+.rules{
+  display:flex;
+  flex-direction:column;
+  gap:9px;
+  text-align:left;
+  font-size:.82rem;
+  line-height:1.5;
+  color:var(--num-soft);
+}
+.rules b{color:var(--num);font-weight:600}
+.opt{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding-top:14px;
+  border-top:1px solid var(--edge);
+  font-size:.82rem;
+  color:var(--num);
+}
+.opt input{width:18px;height:18px;accent-color:var(--ember)}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:1ms!important;animation-iteration-count:1!important;transition-duration:1ms!important}
+}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <header>
+    <button type="button" class="wordmark" id="btn-help" aria-label="How it works, and start a new game">Night Match</button>
+    <div class="readout">
+      <div class="stat"><b id="s-left">27</b><span>Left</span></div>
+      <div class="stat"><b id="s-score">0</b><span>Score</span></div>
+      <div class="stat"><b id="s-best">0</b><span>Best</span></div>
+    </div>
+  </header>
+
+  <div class="board-wrap">
+    <div id="board" role="grid" aria-label="Number board"></div>
+  </div>
+
+  <p id="message">Match pairs that are equal or add to ten.</p>
+
+  <div id="controls">
+    <button class="ctrl" id="btn-undo" aria-label="Undo last move">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h11a6 6 0 0 1 0 12H8"/><path d="M7 4 3 8l4 4"/></svg>
+      Undo
+    </button>
+    <button class="ctrl" id="btn-hint" aria-label="Show a hint">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.5.4.8 1 .9 1.6l.1.6h5.2l.1-.6c.1-.6.4-1.2.9-1.6A6 6 0 0 0 12 3z"/></svg>
+      Hint
+    </button>
+    <button class="ctrl primary" id="btn-add" aria-label="Add the remaining numbers again">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+      Add
+    </button>
+    <button class="ctrl" id="btn-dim" aria-label="Change brightness">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+      <span id="dim-label">Night</span>
+    </button>
+  </div>
+</div>
+
+<div id="overlay" role="dialog" aria-modal="true" aria-labelledby="ov-title">
+  <div class="panel">
+    <h2 id="ov-title">Board clear</h2>
+    <div class="final" id="ov-score" hidden>0</div>
+    <div id="ov-body"></div>
+    <button id="ov-primary">New game</button>
+    <button id="ov-close" class="quiet">Back to board</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+const COLS = 9;
+const STORE = "night-match.v1";
+
+const el = {
+  board:    document.getElementById("board"),
+  left:     document.getElementById("s-left"),
+  score:    document.getElementById("s-score"),
+  best:     document.getElementById("s-best"),
+  message:  document.getElementById("message"),
+  undo:     document.getElementById("btn-undo"),
+  hint:     document.getElementById("btn-hint"),
+  add:      document.getElementById("btn-add"),
+  dim:      document.getElementById("btn-dim"),
+  dimLabel: document.getElementById("dim-label"),
+  overlay:  document.getElementById("overlay"),
+  ovTitle:  document.getElementById("ov-title"),
+  ovScore:  document.getElementById("ov-score"),
+  ovBody:   document.getElementById("ov-body"),
+  ovPrimary:document.getElementById("ov-primary"),
+  ovClose:  document.getElementById("ov-close")
+};
+
+const DIMS = ["dusk", "night", "blackout"];
+const DIM_NAMES = { dusk: "Dusk", night: "Night", blackout: "Blackout" };
+const GROUNDS   = { dusk: "#1C1813", night: "#14110E", blackout: "#000000" };
+
+let cells = [];        // [{ v:1-9, cleared:bool }]
+let selected = null;   // index of the first tapped tile
+let score = 0;
+let best = 0;
+let dim = "night";
+let diagonals = true;
+let history = [];      // full snapshots, newest last
+let busy = false;      // true while a match animation plays
+
+/* ── Persistence ─────────────────────────────────────────────────── */
+
+function save() {
+  try {
+    localStorage.setItem(STORE, JSON.stringify({
+      cells, score, best, dim, diagonals
+    }));
+  } catch (e) { /* private browsing — play on without saving */ }
+}
+
+function load() {
+  try {
+    const raw = localStorage.getItem(STORE);
+    if (!raw) return false;
+    const d = JSON.parse(raw);
+    best = d.best || 0;
+    dim = DIMS.includes(d.dim) ? d.dim : "night";
+    diagonals = d.diagonals !== false;
+    if (Array.isArray(d.cells) && d.cells.length && d.cells.some(c => !c.cleared)) {
+      cells = d.cells.map(c => ({ v: c.v, cleared: !!c.cleared }));
+      score = d.score || 0;
+      return true;
+    }
+  } catch (e) { /* corrupt or unavailable — start fresh */ }
+  return false;
+}
+
+/* ── Rules ───────────────────────────────────────────────────────── */
+
+// A pair is valid when the two numbers are equal or sum to ten.
+function pairs(a, b) {
+  return a === b || a + b === 10;
+}
+
+// Two tiles connect when nothing uncleared sits between them along a
+// line: reading order (which covers side-by-side and end-of-row to
+// start-of-next), the same column, or a diagonal.
+function connected(i, j) {
+  if (i > j) { const t = i; i = j; j = t; }
+
+  let clean = true;
+  for (let k = i + 1; k < j; k++) {
+    if (!cells[k].cleared) { clean = false; break; }
+  }
+  if (clean) return true;
+
+  if (i % COLS === j % COLS) {
+    clean = true;
+    for (let k = i + COLS; k < j; k += COLS) {
+      if (!cells[k].cleared) { clean = false; break; }
+    }
+    if (clean) return true;
+  }
+
+  if (diagonals) {
+    for (const step of [COLS - 1, COLS + 1]) {
+      const want = step === COLS + 1 ? 1 : -1;
+      if ((j - i) % step !== 0) continue;
+      let k = i;
+      let ok = true;
+      while (k < j) {
+        const next = k + step;
+        // Reject steps that wrap around the edge of the grid.
+        if ((next % COLS) - (k % COLS) !== want) { ok = false; break; }
+        if (next < j && !cells[next].cleared) { ok = false; break; }
+        k = next;
+      }
+      if (ok && k === j) return true;
+    }
+  }
+
+  return false;
+}
+
+function valid(i, j) {
+  if (i === j) return false;
+  if (cells[i].cleared || cells[j].cleared) return false;
+  return pairs(cells[i].v, cells[j].v) && connected(i, j);
+}
+
+function findMove() {
+  for (let i = 0; i < cells.length; i++) {
+    if (cells[i].cleared) continue;
+    for (let j = i + 1; j < cells.length; j++) {
+      if (cells[j].cleared) continue;
+      if (valid(i, j)) return [i, j];
+    }
+  }
+  return null;
+}
+
+function remaining() {
+  let n = 0;
+  for (const c of cells) if (!c.cleared) n++;
+  return n;
+}
+
+// Drop any fully cleared row of nine and shift the rest up.
+function collapseRows() {
+  let removed = 0;
+  let r = 0;
+  while ((r + 1) * COLS <= cells.length) {
+    const start = r * COLS;
+    let empty = true;
+    for (let k = start; k < start + COLS; k++) {
+      if (!cells[k].cleared) { empty = false; break; }
+    }
+    if (empty) {
+      cells.splice(start, COLS);
+      removed++;
+    } else {
+      r++;
+    }
+  }
+  return removed;
+}
+
+/* ── Setup ───────────────────────────────────────────────────────── */
+
+function newGame() {
+  do {
+    cells = Array.from({ length: 27 }, () => ({
+      v: 1 + Math.floor(Math.random() * 9),
+      cleared: false
+    }));
+  } while (!findMove());
+
+  score = 0;
+  selected = null;
+  history = [];
+  closeOverlay();
+  render();
+  say("Match pairs that are equal or add to ten.");
+  save();
+}
+
+/* ── Moves ───────────────────────────────────────────────────────── */
+
+function snapshot() {
+  history.push({
+    cells: cells.map(c => ({ v: c.v, cleared: c.cleared })),
+    score
+  });
+  if (history.length > 60) history.shift();
+}
+
+function tap(i) {
+  if (busy || cells[i].cleared) return;
+
+  if (selected === null) {
+    selected = i;
+    render();
+    return;
+  }
+  if (selected === i) {
+    selected = null;
+    render();
+    return;
+  }
+
+  if (valid(selected, i)) {
+    match(selected, i);
+  } else {
+    const node = el.board.children[i];
+    if (node) {
+      node.classList.remove("is-wrong");
+      void node.offsetWidth;
+      node.classList.add("is-wrong");
+    }
+    // Treat the second tap as a fresh pick — it is almost always what
+    // you meant, and re-tapping twice in the dark is a nuisance.
+    selected = i;
+    render();
+  }
+}
+
+function match(a, b) {
+  snapshot();
+  busy = true;
+  selected = null;
+
+  cells[a].cleared = true;
+  cells[b].cleared = true;
+  score += 10;
+
+  // Show the pair cooling before the board reflows underneath it.
+  for (const idx of [a, b]) {
+    const node = el.board.children[idx];
+    if (node) {
+      node.classList.remove("is-selected");
+      node.classList.add("is-cooling");
+      node.textContent = cells[idx].v;
+    }
+  }
+
+  const wait = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 400;
+  setTimeout(() => {
+    const rows = collapseRows();
+    if (rows) score += rows * 50;
+    busy = false;
+    render();
+    save();
+    afterMove(rows);
+  }, wait);
+}
+
+function afterMove(rowsCleared) {
+  if (remaining() === 0) {
+    score += 200;
+    if (score > best) { best = score; }
+    render();
+    save();
+    openOverlay(
+      "Board clear",
+      "Nothing left to match. That is the whole board gone.",
+      score
+    );
+    return;
+  }
+  if (score > best) { best = score; render(); save(); }
+
+  if (rowsCleared) {
+    say(rowsCleared === 1 ? "Row cleared." : rowsCleared + " rows cleared.");
+  } else if (!findMove()) {
+    say("No pairs left — tap Add.", true);
+  } else {
+    say("");
+  }
+}
+
+function undo() {
+  if (busy || !history.length) return;
+  const prev = history.pop();
+  cells = prev.cells;
+  score = prev.score;
+  selected = null;
+  render();
+  save();
+  say("");
+}
+
+// Append every number still on the board, in reading order.
+function addNumbers() {
+  if (busy) return;
+  const left = cells.filter(c => !c.cleared).map(c => c.v);
+  if (!left.length) return;
+  snapshot();
+  for (const v of left) cells.push({ v, cleared: false });
+  selected = null;
+  render();
+  save();
+  say(left.length + " numbers added.");
+  el.board.parentElement.scrollTo({
+    top: el.board.parentElement.scrollHeight,
+    behavior: "smooth"
+  });
+}
+
+function hint() {
+  if (busy) return;
+  const move = findMove();
+  if (!move) { say("No pairs left — tap Add.", true); return; }
+  selected = null;
+  render();
+  for (const idx of move) {
+    const node = el.board.children[idx];
+    if (node) node.classList.add("is-hint");
+  }
+  say("");
+}
+
+/* ── Dimmer ──────────────────────────────────────────────────────── */
+
+function applyDim() {
+  document.documentElement.dataset.dim = dim;
+  el.dimLabel.textContent = DIM_NAMES[dim];
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute("content", GROUNDS[dim]);
+}
+
+function cycleDim() {
+  dim = DIMS[(DIMS.indexOf(dim) + 1) % DIMS.length];
+  applyDim();
+  save();
+  say(DIM_NAMES[dim] + (dim === "blackout" ? " — true black for OLED." : ""));
+}
+
+/* ── Render ──────────────────────────────────────────────────────── */
+
+function say(text, alert) {
+  el.message.textContent = text;
+  el.message.classList.toggle("alert", !!alert);
+}
+
+function render() {
+  const frag = document.createDocumentFragment();
+  cells.forEach((c, i) => {
+    const b = document.createElement("button");
+    b.className = "tile" + (c.cleared ? " is-cleared" : "") + (selected === i ? " is-selected" : "");
+    b.textContent = c.v;
+    b.dataset.i = i;
+    b.type = "button";
+    if (c.cleared) {
+      b.disabled = true;
+      b.setAttribute("aria-label", "cleared");
+    } else {
+      b.setAttribute("aria-label", c.v + (selected === i ? ", selected" : ""));
+    }
+    frag.appendChild(b);
+  });
+  el.board.replaceChildren(frag);
+
+  el.left.textContent = remaining();
+  el.score.textContent = score;
+  el.best.textContent = best;
+  el.undo.disabled = history.length === 0;
+}
+
+/* ── Overlay ─────────────────────────────────────────────────────── */
+
+function openOverlay(title, body, finalScore) {
+  el.ovTitle.textContent = title;
+  el.ovBody.innerHTML = "";
+  if (typeof body === "string") {
+    const p = document.createElement("p");
+    p.textContent = body;
+    el.ovBody.appendChild(p);
+  } else if (body) {
+    el.ovBody.appendChild(body);
+  }
+  if (typeof finalScore === "number") {
+    el.ovScore.hidden = false;
+    el.ovScore.textContent = finalScore;
+  } else {
+    el.ovScore.hidden = true;
+  }
+  el.overlay.classList.add("open");
+  el.ovPrimary.focus();
+}
+
+function closeOverlay() {
+  el.overlay.classList.remove("open");
+}
+
+function showRules() {
+  const wrap = document.createElement("div");
+
+  const list = document.createElement("div");
+  list.className = "rules";
+  const lines = [
+    ["Match", "two numbers that are <b>equal</b> or that <b>add up to ten</b>."],
+    ["Reach", "tiles next to each other across, down, diagonally, or from the end of one row to the start of the next. Cleared tiles do not block the path."],
+    ["Rows", "a row that empties out is removed and everything below shifts up."],
+    ["Add", "writes every remaining number onto the end of the board. Unlimited — there is nothing to wait for and nothing to watch."]
+  ];
+  for (const [term, text] of lines) {
+    const row = document.createElement("div");
+    row.innerHTML = "<b>" + term + "</b> — " + text;
+    list.appendChild(row);
+  }
+  wrap.appendChild(list);
+
+  const opt = document.createElement("label");
+  opt.className = "opt";
+  const span = document.createElement("span");
+  span.textContent = "Allow diagonal matches";
+  const box = document.createElement("input");
+  box.type = "checkbox";
+  box.checked = diagonals;
+  box.addEventListener("change", () => {
+    diagonals = box.checked;
+    save();
+  });
+  opt.append(span, box);
+  wrap.appendChild(opt);
+
+  openOverlay("How it works", wrap);
+}
+
+/* ── Wiring ──────────────────────────────────────────────────────── */
+
+el.board.addEventListener("click", e => {
+  const t = e.target.closest(".tile");
+  if (!t || t.disabled) return;
+  tap(Number(t.dataset.i));
+});
+
+el.undo.addEventListener("click", undo);
+el.hint.addEventListener("click", hint);
+el.add.addEventListener("click", addNumbers);
+el.dim.addEventListener("click", cycleDim);
+
+document.getElementById("btn-help").addEventListener("click", showRules);
+
+el.ovPrimary.addEventListener("click", newGame);
+el.ovClose.addEventListener("click", closeOverlay);
+el.overlay.addEventListener("click", e => {
+  if (e.target === el.overlay) closeOverlay();
+});
+
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") closeOverlay();
+  else if (e.key === "z" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); undo(); }
+});
+
+/* ── Boot ────────────────────────────────────────────────────────── */
+
+const resumed = load();
+applyDim();
+if (resumed) {
+  render();
+  say("Picked up where you left off.");
+} else {
+  newGame();
+}
+
+// Only meaningful when the folder is served over http(s); harmless otherwise.
+if ("serviceWorker" in navigator && location.protocol === "https:") {
+  navigator.serviceWorker.register("service-worker.js").catch(() => {});
+}
+</script>
+</body>
+</html>
